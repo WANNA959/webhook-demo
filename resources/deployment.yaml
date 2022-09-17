@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webhook-demo-deployment
+  namespace: webhook-demo
+  labels:
+    app: webhook-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webhook-demo
+  template:
+    metadata:
+      labels:
+        app: webhook-demo
+    spec:
+      serviceAccount: webhook-demo-sa
+      containers:
+        - name: webhook-demo
+          image: wannazjx/webhook-demo:v1
+#          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
+          args:
+            - -tlsCertFile=/etc/webhook/certs/cert.pem
+            - -tlsKeyFile=/etc/webhook/certs/key.pem
+          volumeMounts:
+            - name: webhook-certs
+              mountPath: /etc/webhook/certs
+              readOnly: true
+      volumes:
+        - name: webhook-certs
+          secret:
+            secretName: webhook-demo-certs

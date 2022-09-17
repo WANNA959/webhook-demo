@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: webhook-demo-sa
+  namespace: webhook-demo
+  labels:
+    app: webhook-demo
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: webhook-demo-cr
+  namespace: webhook-demo
+  labels:
+    app: webhook-demo
+rules:
+  - apiGroups:
+      - webhook.godx.com
+    resources:
+      - "*"
+    verbs:
+      - "*"
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - services
+      - events
+    verbs:
+      - "*"
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs:
+      - "*"
+  - apiGroups:
+      - autoscaling
+    resources:
+      - '*'
+    verbs:
+      - '*'
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: webhook-demo-crb
+  namespace: webhook-demo
+  labels:
+    app: webhook-demo
+subjects:
+  - kind: ServiceAccount
+    name: webhook-demo-sa
+    namespace: admission-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: webhook-demo-cr

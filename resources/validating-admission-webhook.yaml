@@ -1,0 +1,40 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-demo-cfg
+  labels:
+    app: webhook-demo
+webhooks:
+  - name: pod-validating-admission.webhook.godx.com
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+          - services
+        scope: "Namespaced"
+      - apiGroups:
+        - apps
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - deployments
+        scope: "Namespaced"
+    admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        namespace: webhook-demo
+        name: webhook-demo-svc
+        path: "/validate"
+      caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUMvakNDQWVhZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQjRYRFRJeU1Ea3dPREUwTVRnMU9Gb1hEVE15TURrd05URTBNVGcxT0Zvd0ZURVRNQkVHQTFVRQpBeE1LYTNWaVpYSnVaWFJsY3pDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBT0xrCkdHSzVUU282Uno0a0RMMDlkK2xscHkvTWgzTWx2OW4xQkhxdUo2OHFKY1hUOFB3OEFMY2p5MkNpMXY4dm81VncKc1AyVVJHWmhaVExJSEJTU29oMldsNjZvNThXRDdjZWdjcjNCRDIwWm9DbDZoR3FPZTVOTVA5MTNPNWppaHpLSAptMngrbmRNSmsyaUdNRTdCdFV2NXdnZHk0Y2doZ1RQODgxQkU2VXN2VTFZVm5rcXdUakNreXNOYmtVSmhHWk0rCnBmdXUxMFpRUGw0eGxWVmRJZXdodDl5M3R2SE4weDZub094OUczanI5bDZaR0JGMXdvTUVxbVlWOExobFdpQngKeXB0eWliUWtzcVh1NmQyTU05NmJWeDh3ZlkweU5ONHdKdUhGTGJ4UGNSeFoyWElHV1QwVE9Ueit6L3dEUysxcApIVFY1a2t6bWphM3VBeGp6ZzhNQ0F3RUFBYU5aTUZjd0RnWURWUjBQQVFIL0JBUURBZ0trTUE4R0ExVWRFd0VCCi93UUZNQU1CQWY4d0hRWURWUjBPQkJZRUZMYWhpdHRrSi8yOWxEZGZ5SHlmQ29ZYlNIMzlNQlVHQTFVZEVRUU8KTUF5Q0NtdDFZbVZ5Ym1WMFpYTXdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBTlU4YUdkK2FIRGNOMTlFNVYxegp3V2d1eS84UmVjOU9uZUFLTHQ3REgxWDRicXpwcjNheW9XMGY5THlsNlVMcHd3RHFydXhEcmQ2VUY4cS9xazNyCk53R2hPTHkrYXN0QzY0QU9UUjFjWlhnR0w0UlJ4Z2dubmhPYkRPL3lRSHRmM2E0Z1RCNytEelQ2RWs5QzdGVzUKNW1UZUoxcHJ4ZTBGZ3dvOHRpVFlrOWhlRDZlczdUVXZOVDFiN3JacW8vT1RZL1dKaVpJVnNWWVlXQXhhN2pHSgpnMzMvYXNmMk9mZng5MEpWU05RdEo2U0VjQlpEYmZFcmRDeksrclhaanJWTVo3UXZCNFVMZUlCUG1iVkhmUzgwCmFIdUdiUTJ6REcwZll5VStMcTlSZlNnVURNRzlId1U1Z3Q3RFRNcWJFMytIc1JtVzl1SmU1bklnVk5iQ0NaRVIKMkdZPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+    sideEffects: None
+
