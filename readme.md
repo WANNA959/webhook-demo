@@ -76,4 +76,34 @@ kubectl apply -f test/resources/nginx-deployment-label.yaml
 kubectl apply -f test/resources/nginx-deployment.yaml 
 ```
 
-### 
+## webhook逻辑
+
+#### mutating webhook
+
+- 检查范围
+  - namespace为webhook-demo
+  - 且不存在annotation："webhook-demo.gox.com/mutate"="n", "no", "false", "off"
+  - 且不存在annotation："webhook-demo.gox.com/status"="mutated"
+    - 表示已经mutate过
+
+- /mutate/add-label：采用patch的方式
+  - annotatin
+    - 无则add
+    - 有则update
+  - label
+    - 无则add
+    - 有，只update name
+
+#### validating webhook
+
+- 检查范围
+
+  - namespace为webhook-demo
+
+  - 且不存在annotation："webhook-demo.gox.com/validate"="n", "no", "false", "off"
+
+### debug
+
+https://github.com/scriptwang/admission-webhook-example/tree/master/v1
+
+- 简单调试：在k8s集群外部跑webhook server
