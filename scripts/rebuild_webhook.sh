@@ -14,4 +14,4 @@ sh $CURRENT_DIR/build_image.sh
 # deploy webhook server & webhook config
 kubectl apply -f $CURRENT_DIR/../resources/deployment.yaml
 kubectl apply -f $CURRENT_DIR/../resources/mutating-admission-webhook.yaml
-#kubectl apply -f $CURRENT_DIR/../resources/validating-admission-webhook.yaml
+kubectl apply -f $CURRENT_DIR/../resources/validating-admission-webhook.yaml

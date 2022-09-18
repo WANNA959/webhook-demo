@@ -24,12 +24,13 @@ const (
 	managedByLabel = "app.kubernetes.io/managed-by"
 
 	NA = "not_available"
+
+	webhookNamespace = "webhook-demo"
 )
 
 var (
-	ignoredNamespaces = []string{
-		metav1.NamespaceSystem,
-		metav1.NamespacePublic,
+	checkedNamespaces = []string{
+		webhookNamespace,
 	}
 
 	// service & deployment
@@ -79,7 +80,7 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 		} else {
 			patch = append(patch, patchOperation{
 				Op:    "replace",
-				Path:  "/metadata/annotations/" + key,
+				Path:  "/metadata/annotations/" + strings.ReplaceAll(key, "/", "~1"),
 				Value: value,
 			})
 		}
@@ -89,23 +90,28 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 
 func updateLabels(target map[string]string, added map[string]string) (patch []patchOperation) {
 	newValues := make(map[string]string)
+	// only update label version
 	updateValues := make(map[string]string)
 	for key, value := range added {
 		if target == nil || target[key] == "" {
 			newValues[key] = value
-		} else {
-
+		} else if key == versionLabel {
+			updateValues[key] = "v1.0"
 		}
 	}
-	patch = append(patch, patchOperation{
-		Op:    "add",
-		Path:  "/metadata/labels",
-		Value: newValues,
-	})
+	klog.Infof("update label:%+v", updateValues)
+	if len(newValues) != 0 {
+		patch = append(patch, patchOperation{
+			Op:    "add",
+			Path:  "/metadata/labels",
+			Value: newValues,
+		})
+	}
+	// fix patch key with /: use ~1 to encode /
 	for k, v := range updateValues {
 		patch = append(patch, patchOperation{
 			Op:    "replace",
-			Path:  "/metadata/labels/" + k,
+			Path:  "/metadata/labels/" + strings.ReplaceAll(k, "/", "~1"),
 			Value: v,
 		})
 	}
@@ -115,19 +121,20 @@ func updateLabels(target map[string]string, added map[string]string) (patch []pa
 
 func createPatch(availableAnnotations map[string]string, annotations map[string]string, availableLabels map[string]string, labels map[string]string) ([]byte, error) {
 	var patch []patchOperation
-
+	klog.Infof("availableAnnotations: %+v, annotations:%+v", availableAnnotations, annotations)
+	klog.Infof("availableLabels: %+v, labels:%+v", availableLabels, labels)
 	patch = append(patch, updateAnnotation(availableAnnotations, annotations)...)
 	patch = append(patch, updateLabels(availableLabels, labels)...)
 
 	return json.Marshal(patch)
 }
 
-func admissionRequired(ignoredList []string, admissionAnnotationKey string, metadata *metav1.ObjectMeta) bool {
+func admissionRequired(checkkedList []string, admissionAnnotationKey string, metadata *metav1.ObjectMeta) bool {
+	required := false
 	// skip special kubernetes system namespaces
-	for _, namespace := range ignoredList {
+	for _, namespace := range checkkedList {
 		if metadata.Namespace == namespace {
-			klog.Infof("Skip validation for %v for it's in special namespace:%v", metadata.Name, metadata.Namespace)
-			return false
+			required = true
 		}
 	}
 
@@ -136,18 +143,15 @@ func admissionRequired(ignoredList []string, admissionAnnotationKey string, meta
 		annotations = map[string]string{}
 	}
 
-	var required bool
 	switch strings.ToLower(annotations[admissionAnnotationKey]) {
-	default:
-		required = true
 	case "n", "no", "false", "off":
 		required = false
 	}
 	return required
 }
 
-func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
-	required := admissionRequired(ignoredList, admissionWebhookAnnotationMutateKey, metadata)
+func mutationRequired(checkedList []string, metadata *metav1.ObjectMeta) bool {
+	required := admissionRequired(checkedList, admissionWebhookAnnotationMutateKey, metadata)
 	annotations := metadata.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
@@ -185,6 +189,7 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		}
 		resourceName, resourceNamespace, objectMeta = deployment.Name, deployment.Namespace, &deployment.ObjectMeta
 		availableLabels = deployment.Labels
+		availableAnnotations = deployment.Annotations
 	case "Service":
 		var service corev1.Service
 		if err := json.Unmarshal(req.Object.Raw, &service); err != nil {
@@ -197,6 +202,7 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		}
 		resourceName, resourceNamespace, objectMeta = service.Name, service.Namespace, &service.ObjectMeta
 		availableLabels = service.Labels
+		availableAnnotations = service.Annotations
 	case "Pod":
 		var pod corev1.Pod
 		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
@@ -209,7 +215,7 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		}
 		resourceName, resourceNamespace, objectMeta = pod.Name, pod.Namespace, &pod.ObjectMeta
 		availableLabels = pod.Labels
-
+		availableAnnotations = pod.Annotations
 	//其他不支持的类型
 	default:
 		msg := fmt.Sprintf("Not support for this Kind of resource  %v", req.Kind.Kind)
@@ -221,7 +227,7 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		}
 	}
 
-	if !mutationRequired(ignoredNamespaces, objectMeta) {
+	if !mutationRequired(checkedNamespaces, objectMeta) {
 		klog.Infof("Skipping validation for %s/%s due to policy check", resourceNamespace, resourceName)
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,
@@ -265,8 +271,8 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	}
 }
 
-func validationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
-	required := admissionRequired(ignoredList, admissionWebhookAnnotationValidateKey, metadata)
+func validationRequired(checkkedList []string, metadata *metav1.ObjectMeta) bool {
+	required := admissionRequired(checkkedList, admissionWebhookAnnotationValidateKey, metadata)
 	klog.Infof("Validation policy for %v/%v: required:%v", metadata.Namespace, metadata.Name, required)
 	return required
 }
@@ -329,7 +335,7 @@ func CheckLabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		}
 	}
 
-	if !validationRequired(ignoredNamespaces, objectMeta) {
+	if !validationRequired(checkedNamespaces, objectMeta) {
 		klog.Infof("Skipping validation for %s/%s due to policy check", resourceNamespace, resourceName)
 		return &admissionv1.AdmissionResponse{
 			Allowed: true,

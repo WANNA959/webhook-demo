@@ -2,9 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-deployment
-  namespace: webhook-demo
-  annotations:
-    webhook-demo.gox.com/status: "test"
+  namespace: default
 spec:
   selector:
     matchLabels:

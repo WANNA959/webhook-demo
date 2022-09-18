@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: nginx
   namespace: webhook-demo
+  annotations:
+    webhook-demo.gox.com/status: test
   labels:
     app.kubernetes.io/name: nginx
     app.kubernetes.io/instance: nginx
