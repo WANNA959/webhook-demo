@@ -89,6 +89,10 @@ func serveAddLabel(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, kind.Addlabel)
 }
 
+func serveCheckLabel(w http.ResponseWriter, r *http.Request) {
+	serve(w, r, kind.CheckLabel)
+}
+
 //
 //func servePods(w http.ResponseWriter, r *http.Request) {
 //	serve(w, r, admitPods)
@@ -130,6 +134,7 @@ func main() {
 
 	http.HandleFunc("/mutate/always-deny", serveAlwaysDeny)
 	http.HandleFunc("/mutate/add-label", serveAddLabel)
+	http.HandleFunc("/validate/check-label", serveCheckLabel)
 	//http.HandleFunc("/pods", servePods)
 	//http.HandleFunc("/pods/attach", serveAttachingPods)
 	//http.HandleFunc("/mutating-pods", serveMutatePods)

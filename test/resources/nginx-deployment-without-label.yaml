@@ -1,20 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sleep
+  name: nginx-no
   namespace: webhook-demo
+  annotations:
+    webhook-demo.gox.com/validate: "false"
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      app: sleep
+      app: nginx-no
   template:
     metadata:
-      namespace: webhook-demo
       labels:
-        app: sleep
+        app: nginx-no
     spec:
       containers:
-        - name: sleep
-          image: busybox
-          command: ["/bin/sleep","infinity"]
+        - name: nginx-no
+          image: nginx
           imagePullPolicy: IfNotPresent

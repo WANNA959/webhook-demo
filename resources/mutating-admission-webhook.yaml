@@ -16,7 +16,7 @@ webhooks:
           - CREATE
           - UPDATE
         resources:
-          - pods
+#          - pods
           - services
 #        scope: "Namespaced"
       - apiGroups:

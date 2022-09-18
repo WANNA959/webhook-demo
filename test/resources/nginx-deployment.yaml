@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: webhook-demo
+spec:
+  selector:
+    matchLabels:
+      app: nginx-app
+  template:
+    metadata:
+      namespace: webhook-demo
+      labels:
+        app: nginx-app
+    spec:
+      containers:
+        - name: nginx-app
+          image: nginx
+          imagePullPolicy: IfNotPresent

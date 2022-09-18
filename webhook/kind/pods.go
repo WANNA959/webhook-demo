@@ -31,6 +31,8 @@ var (
 		metav1.NamespaceSystem,
 		metav1.NamespacePublic,
 	}
+
+	// service & deployment
 	requiredLabels = []string{
 		nameLabel,
 		instanceLabel,
@@ -46,6 +48,14 @@ var (
 		componentLabel: NA,
 		partOfLabel:    NA,
 		managedByLabel: NA,
+	}
+
+	// pod
+	podRequiredLabels = []string{
+		nameLabel,
+	}
+	addPodLabels = map[string]string{
+		nameLabel: NA,
 	}
 )
 
@@ -78,17 +88,28 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 }
 
 func updateLabels(target map[string]string, added map[string]string) (patch []patchOperation) {
-	values := make(map[string]string)
+	newValues := make(map[string]string)
+	updateValues := make(map[string]string)
 	for key, value := range added {
 		if target == nil || target[key] == "" {
-			values[key] = value
+			newValues[key] = value
+		} else {
+
 		}
 	}
 	patch = append(patch, patchOperation{
 		Op:    "add",
 		Path:  "/metadata/labels",
-		Value: values,
+		Value: newValues,
 	})
+	for k, v := range updateValues {
+		patch = append(patch, patchOperation{
+			Op:    "replace",
+			Path:  "/metadata/labels/" + k,
+			Value: v,
+		})
+	}
+
 	return patch
 }
 
@@ -149,7 +170,7 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		resourceNamespace, resourceName       string
 	)
 
-	klog.Infof("======begin Admission for Namespace=[%v], Kind=[%v], Name=[%v]======", req.Namespace, req.Kind.Kind, req.Name)
+	klog.Infof("======begin Mutating Admission for Namespace=[%v], Kind=[%v], Name=[%v]======", req.Namespace, req.Kind.Kind, req.Name)
 
 	switch req.Kind.Kind {
 	case "Deployment":
@@ -176,6 +197,19 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 		}
 		resourceName, resourceNamespace, objectMeta = service.Name, service.Namespace, &service.ObjectMeta
 		availableLabels = service.Labels
+	case "Pod":
+		var pod corev1.Pod
+		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+			klog.Infof("Could not unmarshal raw object: %v", err)
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+		resourceName, resourceNamespace, objectMeta = pod.Name, pod.Namespace, &pod.ObjectMeta
+		availableLabels = pod.Labels
+
 	//其他不支持的类型
 	default:
 		msg := fmt.Sprintf("Not support for this Kind of resource  %v", req.Kind.Kind)
@@ -197,13 +231,26 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	// add mutate annotation
 	annotations := map[string]string{admissionWebhookAnnotationStatusKey: "mutated"}
 
+	var patchBytes []byte
+	var err error
 	// add labels and annotation
-	patchBytes, err := createPatch(availableAnnotations, annotations, availableLabels, addLabels)
-	if err != nil {
-		return &admissionv1.AdmissionResponse{
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
+	if req.Kind.Kind == "Pod" {
+		patchBytes, err = createPatch(availableAnnotations, annotations, availableLabels, addPodLabels)
+		if err != nil {
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+	} else {
+		patchBytes, err = createPatch(availableAnnotations, annotations, availableLabels, addLabels)
+		if err != nil {
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
 		}
 	}
 
@@ -215,5 +262,104 @@ func Addlabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 			pt := admissionv1.PatchTypeJSONPatch
 			return &pt
 		}(),
+	}
+}
+
+func validationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
+	required := admissionRequired(ignoredList, admissionWebhookAnnotationValidateKey, metadata)
+	klog.Infof("Validation policy for %v/%v: required:%v", metadata.Namespace, metadata.Name, required)
+	return required
+}
+
+func CheckLabel(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+	req := ar.Request
+	var (
+		availableLabels                 map[string]string
+		objectMeta                      *metav1.ObjectMeta
+		resourceNamespace, resourceName string
+	)
+
+	klog.Infof("======begin Validating Admission for Namespace=[%v], Kind=[%v], Name=[%v]======", req.Namespace, req.Kind.Kind, req.Name)
+
+	switch req.Kind.Kind {
+	case "Deployment":
+		var deployment appsv1.Deployment
+		if err := json.Unmarshal(req.Object.Raw, &deployment); err != nil {
+			klog.Infof("Could not unmarshal raw object: %v", err)
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+		resourceName, resourceNamespace, objectMeta = deployment.Name, deployment.Namespace, &deployment.ObjectMeta
+		availableLabels = deployment.Labels
+	case "Service":
+		var service corev1.Service
+		if err := json.Unmarshal(req.Object.Raw, &service); err != nil {
+			klog.Infof("Could not unmarshal raw object: %v", err)
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+		resourceName, resourceNamespace, objectMeta = service.Name, service.Namespace, &service.ObjectMeta
+		availableLabels = service.Labels
+	case "Pod":
+		var pod corev1.Pod
+		if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+			klog.Infof("Could not unmarshal raw object: %v", err)
+			return &admissionv1.AdmissionResponse{
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			}
+		}
+		resourceName, resourceNamespace, objectMeta = pod.Name, pod.Namespace, &pod.ObjectMeta
+		availableLabels = pod.Labels
+	//其他不支持的类型
+	default:
+		msg := fmt.Sprintf("Not support for this Kind of resource  %v", req.Kind.Kind)
+		klog.Info(msg)
+		return &admissionv1.AdmissionResponse{
+			Result: &metav1.Status{
+				Message: msg,
+			},
+		}
+	}
+
+	if !validationRequired(ignoredNamespaces, objectMeta) {
+		klog.Infof("Skipping validation for %s/%s due to policy check", resourceNamespace, resourceName)
+		return &admissionv1.AdmissionResponse{
+			Allowed: true,
+		}
+	}
+
+	allowed := true
+	var result *metav1.Status
+	var requiredLabelsHere []string
+	// add labels and annotation
+	if req.Kind.Kind == "Pod" {
+		requiredLabelsHere = podRequiredLabels
+	} else {
+		requiredLabelsHere = requiredLabels
+	}
+	klog.Infof("available labels: %s ", availableLabels)
+	klog.Infof("required labels: %s", requiredLabels)
+
+	for _, rl := range requiredLabelsHere {
+		if _, ok := availableLabels[rl]; !ok {
+			allowed = false
+			result = &metav1.Status{
+				Reason: "required labels are not set",
+			}
+			break
+		}
+	}
+
+	return &admissionv1.AdmissionResponse{
+		Allowed: allowed,
+		Result:  result,
 	}
 }
